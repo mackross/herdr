@@ -244,6 +244,7 @@ pub(crate) fn is_official_agent_source(source: &str, agent: &str) -> bool {
             | ("herdr:cursor", "cursor")
             | ("herdr:antigravity_cli", "agy")
             | ("herdr:grok", "grok")
+            | ("custom:weaver", "weaver")
     )
 }
 
@@ -505,6 +506,15 @@ mod tests {
                 .is_none()
         );
         assert!(session_ref_from_report("custom:pi", "pi", Some("pi-id".into()), None).is_none());
+        let weaver_ref = session_ref_from_report(
+            "custom:weaver",
+            "weaver",
+            Some("weaver-session".into()),
+            None,
+        )
+        .unwrap();
+        assert_eq!(weaver_ref.kind, AgentSessionRefKind::Id);
+        assert_eq!(weaver_ref.value, "weaver-session");
 
         let session_ref = session_ref_from_report(
             "herdr:omp",

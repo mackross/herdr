@@ -2441,6 +2441,37 @@ mod tests {
     }
 
     #[test]
+    fn sequenced_weaver_reports_recover_when_lifecycle_starts_before_process_detection() {
+        let mut terminal = test_terminal();
+        let session_ref = crate::agent_resume::AgentSessionRef::id("weaver-session").unwrap();
+
+        let early_idle = terminal.set_hook_authority_with_session_ref(
+            "custom:weaver".into(),
+            "weaver".into(),
+            AgentState::Idle,
+            None,
+            Some(session_ref.clone()),
+            Some(1),
+        );
+        assert!(early_idle.is_none());
+        assert!(!terminal.full_lifecycle_hook_authority_active());
+
+        terminal.set_detected_state(Some(Agent::Weaver), AgentState::Idle);
+        assert!(terminal.full_lifecycle_hook_authority_active());
+
+        let working = terminal.set_hook_authority_with_session_ref(
+            "custom:weaver".into(),
+            "weaver".into(),
+            AgentState::Working,
+            None,
+            Some(session_ref),
+            Some(2),
+        );
+        assert!(working.is_some());
+        assert_eq!(terminal.state, AgentState::Working);
+    }
+
+    #[test]
     fn session_identity_claims_leave_state_to_detection() {
         for (source, label, agent, start_source, replacement_source) in [
             (
