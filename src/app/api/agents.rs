@@ -417,6 +417,54 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn agent_prompt_accepts_weaver_lifecycle_authority() {
+        let mut app = app_with_agent();
+        let pane_id = app.state.workspaces[0].tabs[0].root_pane;
+        let terminal_id = app.state.workspaces[0].tabs[0].panes[&pane_id]
+            .attached_terminal_id
+            .clone();
+        let terminal = app.state.terminals.get_mut(&terminal_id).unwrap();
+        terminal.set_detected_state(Some(Agent::Weaver), AgentState::Unknown);
+        terminal.set_hook_authority(
+            "custom:weaver".into(),
+            "weaver".into(),
+            AgentState::Idle,
+            None,
+            None,
+        );
+        let (runtime, mut rx) = crate::terminal::TerminalRuntime::test_with_channel(80, 24);
+        runtime.test_process_pty_bytes(b"\x1b[?2004h");
+        app.state.insert_test_runtime(pane_id, runtime);
+
+        let public_pane_id = app.public_pane_id(0, pane_id).unwrap();
+        let response = app.handle_agent_prompt(
+            "req-weaver".into(),
+            AgentPromptParams {
+                target: public_pane_id,
+                text: "prompt Weaver".into(),
+                wait: None,
+            },
+        );
+
+        let success: SuccessResponse = serde_json::from_str(&response).unwrap();
+        let ResponseResult::AgentPrompted { agent, .. } = success.result else {
+            panic!("expected Weaver prompted response");
+        };
+        assert_eq!(agent.agent.as_deref(), Some("weaver"));
+        assert_eq!(
+            rx.try_recv().unwrap(),
+            Bytes::from_static(b"\x1b[200~prompt Weaver\x1b[201~")
+        );
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(1), rx.recv())
+                .await
+                .unwrap()
+                .unwrap(),
+            Bytes::from_static(b"\r")
+        );
+    }
+
+    #[tokio::test]
     async fn agent_prompt_rejects_blocked_agent_without_writing() {
         let mut app = app_with_agent();
         let pane_id = app.state.workspaces[0].tabs[0].root_pane;
