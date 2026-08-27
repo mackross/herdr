@@ -2445,14 +2445,22 @@ mod tests {
         let mut terminal = test_terminal();
         let session_ref = crate::agent_resume::AgentSessionRef::id("weaver-session").unwrap();
 
+        let early_session = terminal.set_agent_session_ref_for_session_start(
+            "custom:weaver".into(),
+            "weaver".into(),
+            Some(session_ref.clone()),
+            Some(1),
+            Some("startup".into()),
+        );
         let early_idle = terminal.set_hook_authority_with_session_ref(
             "custom:weaver".into(),
             "weaver".into(),
             AgentState::Idle,
             None,
             Some(session_ref.clone()),
-            Some(1),
+            Some(2),
         );
+        assert!(early_session.is_none());
         assert!(early_idle.is_none());
         assert!(!terminal.full_lifecycle_hook_authority_active());
 
@@ -2465,7 +2473,7 @@ mod tests {
             AgentState::Working,
             None,
             Some(session_ref),
-            Some(2),
+            Some(3),
         );
         assert!(working.is_some());
         assert_eq!(terminal.state, AgentState::Working);
