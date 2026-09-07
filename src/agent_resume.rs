@@ -207,6 +207,13 @@ pub fn plan(source: &str, agent: &str, session_ref: &AgentSessionRef) -> Option<
         ("herdr:grok", "grok", AgentSessionRefKind::Id) => {
             vec!["grok".into(), "--resume".into(), session_ref.value.clone()]
         }
+        ("custom:weaver", "weaver", AgentSessionRefKind::Id) => {
+            vec![
+                "weaver".into(),
+                "--session".into(),
+                session_ref.value.clone(),
+            ]
+        }
         _ => return None,
     };
 
@@ -465,6 +472,27 @@ mod tests {
             .argv,
             vec!["grok", "--resume", "grok-session"]
         );
+        assert_eq!(
+            plan(
+                "custom:weaver",
+                "weaver",
+                &AgentSessionRef::id("weaver-session").unwrap()
+            )
+            .unwrap()
+            .argv,
+            vec!["weaver", "--session", "weaver-session"]
+        );
+    }
+
+    #[test]
+    fn planner_rejects_weaver_path_refs() {
+        let weaver_session = absolute_test_path("weaver-session");
+        assert!(plan(
+            "custom:weaver",
+            "weaver",
+            &AgentSessionRef::path(&weaver_session).unwrap()
+        )
+        .is_none());
     }
 
     #[test]

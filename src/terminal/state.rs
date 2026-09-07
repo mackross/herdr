@@ -1340,6 +1340,11 @@ impl TerminalState {
                     Some("startup" | "clear" | "resume" | "compact" | "branch")
                 )
                 | ("herdr:antigravity_cli", "agy", None)
+                | (
+                    "custom:weaver",
+                    "weaver",
+                    Some("startup" | "resume" | "new")
+                )
         )
     }
 
@@ -2477,6 +2482,56 @@ mod tests {
         );
         assert!(working.is_some());
         assert_eq!(terminal.state, AgentState::Working);
+    }
+
+    #[test]
+    fn weaver_session_replacement_reports_reanchor_full_lifecycle_authority() {
+        for reason in ["startup", "resume", "new"] {
+            let mut terminal = test_terminal();
+            let old_session = crate::agent_resume::AgentSessionRef::id("weaver-old").unwrap();
+            let new_session = crate::agent_resume::AgentSessionRef::id("weaver-new").unwrap();
+            terminal.set_detected_state(Some(Agent::Weaver), AgentState::Idle);
+            terminal.set_hook_authority_with_session_ref(
+                "custom:weaver".into(),
+                "weaver".into(),
+                AgentState::Idle,
+                None,
+                Some(old_session),
+                Some(10),
+            );
+
+            let session_report = terminal.set_agent_session_ref_for_session_start(
+                "custom:weaver".into(),
+                "weaver".into(),
+                Some(new_session.clone()),
+                Some(11),
+                Some(reason.into()),
+            );
+
+            assert!(
+                session_report.is_some(),
+                "{reason} should replace the previous Weaver session"
+            );
+
+            let working = terminal.set_hook_authority_with_session_ref(
+                "custom:weaver".into(),
+                "weaver".into(),
+                AgentState::Working,
+                None,
+                Some(new_session.clone()),
+                Some(12),
+            );
+
+            assert!(
+                working.is_some(),
+                "{reason} should accept working for the replacement session"
+            );
+            assert_eq!(terminal.state, AgentState::Working);
+            assert_eq!(
+                terminal.hook_authority.as_ref().unwrap().session_ref,
+                Some(new_session)
+            );
+        }
     }
 
     #[test]
