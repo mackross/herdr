@@ -1058,6 +1058,22 @@ mod tests {
     }
 
     #[test]
+    fn weaver_restore_uses_exact_session_and_suppresses_duplicates() {
+        let session = super::super::snapshot::PaneAgentSessionSnapshot {
+            source: "custom:weaver".into(),
+            agent: "weaver".into(),
+            kind: crate::agent_resume::AgentSessionRefKind::Id,
+            value: "weaver-session".into(),
+        };
+        let mut resumed = HashSet::new();
+        assert!(take_restore_plan_for_snapshot(&session, false, &mut resumed).is_none());
+        assert!(resumed.is_empty());
+        let plan = take_restore_plan_for_snapshot(&session, true, &mut resumed).unwrap();
+        assert_eq!(plan.argv, vec!["weaver", "--session", "weaver-session"]);
+        assert!(take_restore_plan_for_snapshot(&session, true, &mut resumed).is_none());
+    }
+
+    #[test]
     fn pane_restore_startup_suppresses_history_for_native_agent_resume() {
         let session = super::super::snapshot::PaneAgentSessionSnapshot {
             source: "herdr:pi".into(),

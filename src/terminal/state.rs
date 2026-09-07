@@ -2496,9 +2496,20 @@ mod tests {
                 "weaver".into(),
                 AgentState::Idle,
                 None,
-                Some(old_session),
+                Some(old_session.clone()),
                 Some(10),
             );
+
+            // exec keeps the same foreground process. A replacement reporter
+            // must retain source-wide ordering, not restart its counter at 1.
+            let reset_sequence = terminal.set_agent_session_ref_for_session_start(
+                "custom:weaver".into(),
+                "weaver".into(),
+                Some(new_session.clone()),
+                Some(1),
+                Some(reason.into()),
+            );
+            assert!(reset_sequence.is_none());
 
             let session_report = terminal.set_agent_session_ref_for_session_start(
                 "custom:weaver".into(),
@@ -2529,8 +2540,28 @@ mod tests {
             assert_eq!(terminal.state, AgentState::Working);
             assert_eq!(
                 terminal.hook_authority.as_ref().unwrap().session_ref,
-                Some(new_session)
+                Some(new_session.clone())
             );
+            let stale = terminal.set_hook_authority_with_session_ref(
+                "custom:weaver".into(),
+                "weaver".into(),
+                AgentState::Blocked,
+                None,
+                Some(old_session),
+                Some(100),
+            );
+            assert!(stale.is_none());
+            assert_eq!(terminal.state, AgentState::Working);
+            let idle = terminal.set_hook_authority_with_session_ref(
+                "custom:weaver".into(),
+                "weaver".into(),
+                AgentState::Idle,
+                None,
+                Some(new_session),
+                Some(13),
+            );
+            assert!(idle.is_some());
+            assert_eq!(terminal.state, AgentState::Idle);
         }
     }
 
