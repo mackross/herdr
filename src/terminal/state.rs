@@ -2491,6 +2491,13 @@ mod tests {
             let old_session = crate::agent_resume::AgentSessionRef::id("weaver-old").unwrap();
             let new_session = crate::agent_resume::AgentSessionRef::id("weaver-new").unwrap();
             terminal.set_detected_state(Some(Agent::Weaver), AgentState::Idle);
+            terminal.set_agent_session_ref_for_session_start(
+                "custom:weaver".into(),
+                "weaver".into(),
+                Some(old_session.clone()),
+                Some(9),
+                Some("startup".into()),
+            );
             terminal.set_hook_authority_with_session_ref(
                 "custom:weaver".into(),
                 "weaver".into(),
@@ -2498,6 +2505,11 @@ mod tests {
                 None,
                 Some(old_session.clone()),
                 Some(10),
+            );
+            assert!(terminal.full_lifecycle_hook_authority_active());
+            assert_eq!(
+                terminal.hook_authority.as_ref().unwrap().session_ref,
+                Some(old_session.clone())
             );
 
             // exec keeps the same foreground process. A replacement reporter
