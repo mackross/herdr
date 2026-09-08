@@ -69,6 +69,24 @@ pub fn session_ref_from_report(
     agent_session_id.and_then(AgentSessionRef::id)
 }
 
+pub fn persisted_session_from_launch_args(
+    agent: crate::detect::Agent,
+    args: &[String],
+) -> Option<PersistedAgentSession> {
+    let [command, session_id] = args else {
+        return None;
+    };
+    if agent != crate::detect::Agent::Codex || command != "resume" || session_id.starts_with('-') {
+        return None;
+    }
+
+    Some(PersistedAgentSession {
+        source: "herdr:codex".into(),
+        agent: "codex".into(),
+        session_ref: AgentSessionRef::id(session_id.clone())?,
+    })
+}
+
 pub fn normalize_session_start_source(value: Option<String>) -> Option<String> {
     match value.as_deref().map(str::trim) {
         Some(
@@ -207,6 +225,13 @@ pub fn plan(source: &str, agent: &str, session_ref: &AgentSessionRef) -> Option<
         ("herdr:grok", "grok", AgentSessionRefKind::Id) => {
             vec!["grok".into(), "--resume".into(), session_ref.value.clone()]
         }
+        ("custom:weaver", "weaver", AgentSessionRefKind::Id) => {
+            vec![
+                "weaver".into(),
+                "--session".into(),
+                session_ref.value.clone(),
+            ]
+        }
         _ => return None,
     };
 
@@ -244,6 +269,7 @@ pub(crate) fn is_official_agent_source(source: &str, agent: &str) -> bool {
             | ("herdr:cursor", "cursor")
             | ("herdr:antigravity_cli", "agy")
             | ("herdr:grok", "grok")
+            | ("custom:weaver", "weaver")
     )
 }
 
@@ -280,6 +306,40 @@ mod tests {
             "herdr:opencode",
             "opencode"
         ));
+    }
+
+    #[test]
+    fn codex_noncanonical_resume_launch_has_no_explicit_session() {
+        assert_eq!(
+            persisted_session_from_launch_args(
+                crate::detect::Agent::Codex,
+                &["resume".into(), "codex-session".into()]
+            )
+            .unwrap()
+            .session_ref
+            .value,
+            "codex-session"
+        );
+        assert!(persisted_session_from_launch_args(
+            crate::detect::Agent::Codex,
+            &["resume".into(), "--last".into()]
+        )
+        .is_none());
+        assert!(persisted_session_from_launch_args(
+            crate::detect::Agent::Codex,
+            &["resume".into(), "not-a-session".into(), "--last".into()]
+        )
+        .is_none());
+        assert!(persisted_session_from_launch_args(
+            crate::detect::Agent::Codex,
+            &[
+                "--remote".into(),
+                "ws://example.test".into(),
+                "resume".into(),
+                "remote-session".into(),
+            ]
+        )
+        .is_none());
     }
 
     #[test]
@@ -464,6 +524,27 @@ mod tests {
             .argv,
             vec!["grok", "--resume", "grok-session"]
         );
+        assert_eq!(
+            plan(
+                "custom:weaver",
+                "weaver",
+                &AgentSessionRef::id("weaver-session").unwrap()
+            )
+            .unwrap()
+            .argv,
+            vec!["weaver", "--session", "weaver-session"]
+        );
+    }
+
+    #[test]
+    fn planner_rejects_weaver_path_refs() {
+        let weaver_session = absolute_test_path("weaver-session");
+        assert!(plan(
+            "custom:weaver",
+            "weaver",
+            &AgentSessionRef::path(&weaver_session).unwrap()
+        )
+        .is_none());
     }
 
     #[test]
@@ -505,6 +586,15 @@ mod tests {
                 .is_none()
         );
         assert!(session_ref_from_report("custom:pi", "pi", Some("pi-id".into()), None).is_none());
+        let weaver_ref = session_ref_from_report(
+            "custom:weaver",
+            "weaver",
+            Some("weaver-session".into()),
+            None,
+        )
+        .unwrap();
+        assert_eq!(weaver_ref.kind, AgentSessionRefKind::Id);
+        assert_eq!(weaver_ref.value, "weaver-session");
 
         let session_ref = session_ref_from_report(
             "herdr:omp",
