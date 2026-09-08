@@ -523,20 +523,31 @@ mod tests {
             .clone();
         let terminal = app.state.terminals.get_mut(&terminal_id).unwrap();
         terminal.set_detected_state(Some(Agent::Weaver), AgentState::Unknown);
-        terminal.set_hook_authority(
+        let session = crate::agent_resume::AgentSessionRef::id("weaver-prompt").unwrap();
+        terminal.set_agent_session_ref_for_session_start(
+            "custom:weaver".into(),
+            "weaver".into(),
+            Some(session.clone()),
+            Some(1),
+            Some("startup".into()),
+        );
+        terminal.set_hook_authority_with_session_ref(
             "custom:weaver".into(),
             "weaver".into(),
             AgentState::Idle,
             None,
-            None,
+            Some(session),
+            Some(2),
         );
+        assert!(terminal.full_lifecycle_hook_authority_active());
         let (runtime, mut rx) = crate::terminal::TerminalRuntime::test_with_channel(80, 24);
         runtime.test_process_pty_bytes(b"\x1b[?2004h");
         app.state.insert_test_runtime(pane_id, runtime);
 
         let public_pane_id = app.public_pane_id(0, pane_id).unwrap();
-        let response = app.handle_agent_prompt(
-            "req-weaver".into(),
+        let response = run_deferred_agent_prompt(
+            &mut app,
+            "req-weaver",
             AgentPromptParams {
                 target: public_pane_id,
                 text: "prompt Weaver".into(),
